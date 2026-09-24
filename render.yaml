@@ -1,0 +1,25 @@
+services:
+  - type: worker
+    name: capymuzi
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: commit
+    envVars:
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DATABASE_PATH
+        value: /app/data/music-bot.sqlite
+      - key: IDLE_DISCONNECT_MS
+        value: "300000"
+      - key: EMPTY_CHANNEL_DISCONNECT_MS
+        value: "60000"
+    disk:
+      name: capymuzi-data
+      mountPath: /app/data
+      sizeGB: 1

@@ -14,6 +14,7 @@ const emptySnapshot: PlayerSnapshot = {
   volume: 50,
   paused: false,
   voiceChannelId: null,
+  notice: null,
 };
 
 function formatDuration(seconds: number | null): string {
@@ -42,6 +43,7 @@ export function createPlayerPanel(state: PlayerSnapshot = emptySnapshot) {
     .setFooter({ text: `YouTube · Âm lượng ${state.volume}% · Loop ${state.loopCurrent ? "bật" : "tắt"}` });
 
   if (state.current?.thumbnail) embed.setThumbnail(state.current.thumbnail);
+  if (state.notice) embed.addFields({ name: "Thông báo", value: state.notice });
 
   const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("music:previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary).setDisabled(!state.current || state.historyCount === 0),
@@ -56,6 +58,7 @@ export function createPlayerPanel(state: PlayerSnapshot = emptySnapshot) {
     new ButtonBuilder().setCustomId("music:queue").setLabel("Queue").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("music:loop").setLabel(`Loop: ${state.loopCurrent ? "Bật" : "Tắt"}`).setStyle(state.loopCurrent ? ButtonStyle.Success : ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("music:volume").setLabel("Âm lượng").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("music:history").setLabel("Lịch sử").setEmoji("🕘").setStyle(ButtonStyle.Secondary),
   );
 
   return { embeds: [embed], components: [controls, options] };

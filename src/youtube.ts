@@ -1,5 +1,12 @@
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import type { Readable } from "node:stream";
 import { youtubeDl } from "youtube-dl-exec";
+
+const require = createRequire(import.meta.url);
+const youtubeDlPackage = require("youtube-dl-exec") as {
+  constants: { YOUTUBE_DL_PATH: string };
+};
 
 export interface Track {
   id: string;
@@ -25,6 +32,7 @@ interface YoutubeInfo {
 
 export interface YoutubeAudioProcess {
   stream: Readable;
+  readonly failure: string | null;
   stop(): void;
 }
 
@@ -52,6 +60,28 @@ function parseInfo(raw: unknown): YoutubeInfo {
   return raw as YoutubeInfo;
 }
 
+function friendlyYoutubeError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  if (/private video/i.test(raw)) return "Video này đang ở chế độ riêng tư.";
+  if (/members-only|join this channel/i.test(raw)) return "Video này chỉ dành cho thành viên của kênh YouTube.";
+  if (/age.?restricted|confirm your age|sign in to confirm your age/i.test(raw)) {
+    return "Video này bị giới hạn độ tuổi và bot không thể truy cập.";
+  }
+  if (/not available in your country|geo.?restrict|blocked in your country/i.test(raw)) {
+    return "Video này bị chặn theo khu vực của máy đang chạy bot.";
+  }
+  if (/copyright|removed by the uploader|video unavailable/i.test(raw)) {
+    return "Video không còn khả dụng hoặc đã bị hạn chế bản quyền.";
+  }
+  if (/HTTP Error 403|Forbidden/i.test(raw)) {
+    return "YouTube từ chối truy cập video này (HTTP 403). Hãy thử một video khác.";
+  }
+  if (/no video results|no matches|entries.*null/i.test(raw)) {
+    return "Không tìm thấy video phù hợp trên YouTube.";
+  }
+  return "Không thể lấy thông tin video từ YouTube. Hãy thử lại sau.";
+}
+
 export async function resolveTrack(input: string, requestedBy: string): Promise<Track> {
   const query = input.trim();
   if (!query) throw new Error("Tên bài hát hoặc link không được để trống.");
@@ -60,14 +90,20 @@ export async function resolveTrack(input: string, requestedBy: string): Promise<
   }
 
   const target = isYoutubeUrl(query) ? query : `ytsearch1:${query}`;
-  const raw = await youtubeDl(target, {
-    dumpSingleJson: true,
-    skipDownload: true,
-    noWarnings: true,
-    noPlaylist: true,
-    playlistItems: "1",
-    jsRuntimes: "node",
-  });
+  let raw: unknown;
+  try {
+    raw = await youtubeDl(target, {
+      dumpSingleJson: true,
+      skipDownload: true,
+      noWarnings: true,
+      noPlaylist: true,
+      playlistItems: "1",
+      jsRuntimes: "node",
+    });
+  } catch (error) {
+    console.error(`Cannot resolve YouTube query "${query}":`, error);
+    throw new Error(friendlyYoutubeError(error), { cause: error });
+  }
 
   const root = parseInfo(raw);
   const info = root.entries?.find(Boolean) ?? root;
@@ -85,37 +121,49 @@ export async function resolveTrack(input: string, requestedBy: string): Promise<
 }
 
 export function createYoutubeAudioProcess(url: string): YoutubeAudioProcess {
-  const subprocess = youtubeDl.exec(
+  const subprocess = spawn(youtubeDlPackage.constants.YOUTUBE_DL_PATH, [
+    "--output", "-",
+    "--format", "bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/bestaudio[ext=webm][acodec=opus]/bestaudio/best",
+    "--no-playlist",
+    "--no-progress",
+    "--no-warnings",
+    "--quiet",
+    "--force-ipv4",
+    "--retries", "3",
+    "--fragment-retries", "3",
+    "--retry-sleep", "1",
+    "--js-runtimes", "node",
+    "--remote-components", "ejs:github",
+    "--",
     url,
-    {
-      output: "-",
-      format: "bestaudio[ext=webm][acodec=opus]/bestaudio/best",
-      noPlaylist: true,
-      noProgress: true,
-      noWarnings: true,
-      quiet: true,
-      jsRuntimes: "node",
-    },
-    { windowsHide: true },
-  );
-
-  if (!subprocess.stdout) {
-    subprocess.kill();
-    throw new Error("Không mở được audio stream từ YouTube.");
-  }
+  ], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
 
   let stderr = "";
-  subprocess.stderr?.on("data", (chunk: Buffer | string) => {
+  let failure: string | null = null;
+  let intentionallyStopped = false;
+  subprocess.stderr.on("data", (chunk: Buffer | string) => {
     stderr += chunk.toString();
     if (stderr.length > 4_000) stderr = stderr.slice(-4_000);
+    if (/ERROR:|HTTP Error 403/i.test(stderr)) failure = stderr.trim();
   });
   subprocess.once("close", (code) => {
-    if (code && code !== 0 && stderr) console.error(`yt-dlp exited with code ${code}: ${stderr.trim()}`);
+    if (!intentionallyStopped && code && code !== 0) {
+      failure = stderr.trim() || `yt-dlp exited with code ${code}`;
+      console.error(`yt-dlp exited with code ${code}: ${failure}`);
+    }
+  });
+  subprocess.once("error", (error) => {
+    failure = error.message;
+    console.error("Cannot start yt-dlp:", error);
   });
 
   return {
     stream: subprocess.stdout,
+    get failure() {
+      return failure;
+    },
     stop: () => {
+      intentionallyStopped = true;
       if (!subprocess.killed) subprocess.kill();
     },
   };

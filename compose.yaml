@@ -1,0 +1,20 @@
+services:
+  capymuzi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: capymuzi:local
+    container_name: capymuzi
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /app/data/music-bot.sqlite
+      HOST: 0.0.0.0
+      PORT: 3000
+    volumes:
+      - capymuzi-data:/app/data
+
+volumes:
+  capymuzi-data:
