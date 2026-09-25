@@ -20,13 +20,13 @@ Copy-Item .env.example .env
 & 'C:\Program Files\nodejs\npm.cmd' run dev
 ```
 
-Trong server, gõ `/music`. Bot phải trả về bảng Music Player.
+Trong server, gõ `/capymuzi`. Bot phải trả về bảng Music Player.
 
 > Lưu ý: `npm` trong PATH của máy hiện tại đang lỗi cấu hình. Dùng chính xác lệnh `& 'C:\Program Files\nodejs\npm.cmd' ...` phía trên, hoặc cài lại Node.js LTS để sửa vĩnh viễn.
 
 ## Cách sử dụng
 
-1. Chạy bot và dùng `/music` trong text channel.
+1. Chạy bot và dùng `/capymuzi` trong text channel.
 2. Vào một voice channel.
 3. Nhấn **Thêm nhạc**, nhập một hoặc nhiều tên bài/link YouTube (mỗi dòng một bài) rồi gửi form.
 4. Dùng các nút để pause/resume, quay lại bài trước, skip, stop, shuffle, loop, xem queue, lịch sử và chỉnh âm lượng.

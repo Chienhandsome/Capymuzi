@@ -289,7 +289,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
-    if (interaction.isChatInputCommand() && interaction.commandName === "music") {
+    if (interaction.isChatInputCommand() && interaction.commandName === "capymuzi") {
       if (!interaction.guild) throw new Error("Lệnh này chỉ dùng được trong server.");
       const player = music.get(interaction.guild);
       await interaction.reply(createPlayerPanel(player.snapshot));
