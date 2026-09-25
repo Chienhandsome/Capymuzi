@@ -19,6 +19,10 @@ services:
         value: "300000"
       - key: EMPTY_CHANNEL_DISCONNECT_MS
         value: "60000"
+      # Add this secret manually in Render Dashboard when YouTube asks the bot
+      # to sign in: base64 of an exported Netscape-format YouTube cookies.txt.
+      - key: YTDLP_COOKIES_B64
+        sync: false
     disk:
       name: capymuzi-data
       mountPath: /app/data

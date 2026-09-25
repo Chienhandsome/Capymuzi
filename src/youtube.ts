@@ -1,12 +1,43 @@
 import { spawn } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Readable } from "node:stream";
 import { youtubeDl } from "youtube-dl-exec";
+import { config } from "./config.js";
 
 const require = createRequire(import.meta.url);
 const youtubeDlPackage = require("youtube-dl-exec") as {
   constants: { YOUTUBE_DL_PATH: string };
 };
+
+function createCookiesFile(): string | null {
+  if (!config.youtubeCookiesBase64) return null;
+
+  let cookies: string;
+  try {
+    cookies = Buffer.from(config.youtubeCookiesBase64, "base64").toString("utf8");
+  } catch {
+    throw new Error("YTDLP_COOKIES_B64 phải là nội dung cookies.txt được mã hóa base64.");
+  }
+
+  if (!/youtube\.com/i.test(cookies)) {
+    throw new Error("YTDLP_COOKIES_B64 không chứa cookie YouTube hợp lệ.");
+  }
+
+  // Browser exports from Windows commonly use CRLF, while yt-dlp in the Linux
+  // container expects a Netscape cookie file with Unix newlines.
+  cookies = cookies.replace(/\r\n?/g, "\n");
+
+  const directory = mkdtempSync(join(tmpdir(), "capymuzi-youtube-"));
+  const path = join(directory, "cookies.txt");
+  writeFileSync(path, cookies, { encoding: "utf8", mode: 0o600 });
+  return path;
+}
+
+const cookiesPath = createCookiesFile();
+const cookiesArgs = cookiesPath ? ["--cookies", cookiesPath] : [];
 
 export interface Track {
   id: string;
@@ -67,6 +98,9 @@ function friendlyYoutubeError(error: unknown): string {
   if (/age.?restricted|confirm your age|sign in to confirm your age/i.test(raw)) {
     return "Video này bị giới hạn độ tuổi và bot không thể truy cập.";
   }
+  if (/sign in to confirm you.?re not a bot/i.test(raw)) {
+    return "YouTube đã chặn IP cloud của bot. Chủ bot cần cấu hình YTDLP_COOKIES_B64.";
+  }
   if (/not available in your country|geo.?restrict|blocked in your country/i.test(raw)) {
     return "Video này bị chặn theo khu vực của máy đang chạy bot.";
   }
@@ -99,6 +133,7 @@ export async function resolveTrack(input: string, requestedBy: string): Promise<
       noPlaylist: true,
       playlistItems: "1",
       jsRuntimes: "node",
+      ...(cookiesPath ? { cookies: cookiesPath } : {}),
     });
   } catch (error) {
     console.error(`Cannot resolve YouTube query "${query}":`, error);
@@ -122,6 +157,7 @@ export async function resolveTrack(input: string, requestedBy: string): Promise<
 
 export function createYoutubeAudioProcess(url: string): YoutubeAudioProcess {
   const subprocess = spawn(youtubeDlPackage.constants.YOUTUBE_DL_PATH, [
+    ...cookiesArgs,
     "--output", "-",
     "--format", "bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/bestaudio[ext=webm][acodec=opus]/bestaudio/best",
     "--no-playlist",

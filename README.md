@@ -38,6 +38,7 @@ Bot tự rời voice sau 5 phút khi queue trống. Nếu voice channel không c
 Nút **Lịch sử** hỗ trợ phân trang và xóa dữ liệu; bot luôn yêu cầu xác nhận trước khi xóa.
 
 Chỉ phát nội dung mà bạn có quyền truy cập và sử dụng; việc lấy audio có thể bị ảnh hưởng khi YouTube thay đổi cơ chế phân phối nội dung.
+Nếu log cloud báo `Sign in to confirm you’re not a bot`, xem phần YouTube trong [DEPLOY.md](./DEPLOY.md) để cấu hình cookie xác thực cho `yt-dlp`.
 
 ## Docker và deploy
 
